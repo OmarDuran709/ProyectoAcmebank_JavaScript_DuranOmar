@@ -1,6 +1,10 @@
 // Configuración de registro con gestor de BD
 let isSubmitting = false;
 
+// Variable global para el timeout de validación y timeout de ocultar mensaje
+let validationTimeout = null;
+let hideErrorTimeout = null;
+
 // Inicialización cuando se carga la página
 document.addEventListener('DOMContentLoaded', function() {
     initializeRegisterPage();
@@ -184,21 +188,15 @@ function createProgressBar() {
 function setupFormValidation() {
     const form = document.getElementById('registerForm');
     const inputs = form.querySelectorAll('input, select');
-    
+
     inputs.forEach(input => {
         input.addEventListener('blur', function() {
-            validateFieldWithAnimation(this);
-        });
-        
-        input.addEventListener('input', function() {
-            clearFieldError(this);
-            // Validación en tiempo real para algunos campos
-            if (this.name === 'email' || this.name === 'numeroId') {
-                debounce(() => validateFieldWithAnimation(this), 500)();
-            }
+            validarCampo(this);
         });
     });
 }
+
+
 
 // Debounce function
 function debounce(func, wait) {
@@ -211,6 +209,84 @@ function debounce(func, wait) {
         clearTimeout(timeout);
         timeout = setTimeout(later, wait);
     };
+}
+
+// Función para mostrar el mensaje de error
+function showFieldError(field, message) {
+    // Busca si ya existe un mensaje de error en este campo
+    let errorDiv = field.parentNode.querySelector('.error-message');
+    if (!errorDiv) {
+        errorDiv = document.createElement('div');
+        errorDiv.className = 'error-message';
+        errorDiv.style.color = '#dc2626';
+        errorDiv.style.marginTop = '4px';
+        errorDiv.style.fontSize = '0.95em';
+        field.parentNode.appendChild(errorDiv);
+    }
+
+    errorDiv.textContent = message;
+
+    // Ocultar el mensaje después de 1.5 segundos
+    clearTimeout(hideErrorTimeout);
+    hideErrorTimeout = setTimeout(() => {
+        errorDiv.textContent = '';
+    }, 1500);
+}
+
+
+
+// Función de validación con tu switch
+function validarCampo(field) {
+    let value = field.value.trim();
+    let isValid = true;
+    let errorMessage = '';
+
+    switch(field.name) {
+        case 'numeroId':
+            if (!/^\d{8,12}$/.test(value)) {
+                isValid = false;
+                errorMessage = 'El número de identificación debe tener entre 8 y 12 dígitos';
+            }
+            break;
+        case 'nombres':
+        case 'apellidos':
+            if (!/^[a-zA-ZáéíóúÁÉÍÓÚñÑ\s]{2,50}$/.test(value)) {
+                isValid = false;
+                errorMessage = 'Solo se permiten letras y espacios (2-50 caracteres)';
+            }
+            break;
+        case 'telefono':
+            if (!/^3\d{9}$/.test(value)) {
+                isValid = false;
+                errorMessage = 'El teléfono debe iniciar con 3 y tener 10 dígitos';
+            }
+            break;
+        case 'email':
+            if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value)) {
+                isValid = false;
+                errorMessage = 'Ingrese un email válido (ejemplo@dominio.com)';
+            }
+            break;
+        case 'password':
+            if (value.length < 6) {
+                isValid = false;
+                errorMessage = 'La contraseña debe tener al menos 6 caracteres';
+            } else if (!/(?=.*[a-z])(?=.*[A-Z])(?=.*\d)/.test(value)) {
+                isValid = false;
+                errorMessage = 'La contraseña debe contener al menos una mayúscula, una minúscula y un número';
+            }
+            break;
+        case 'direccion':
+            if (value.length < 10) {
+                isValid = false;
+                errorMessage = 'La dirección debe tener al menos 10 caracteres';
+            }
+            break;
+    }
+
+    if (!isValid) {
+        showFieldError(field, errorMessage);
+    }
 }
 
 // Validar campo con animaciones
@@ -267,20 +343,9 @@ function validateFieldWithAnimation(field) {
             }
             break;
     }
-    
-    // Aplicar estilos y animaciones
-    if (value) {
-        if (isValid) {
-            showFieldSuccess(field);
-        } else {
-            showFieldError(field, errorMessage);
-        }
-    } else {
-        clearFieldError(field);
+        return isValid;
     }
     
-    return isValid;
-}
 
 // Mostrar éxito en campo con animación
 function showFieldSuccess(field) {
@@ -311,71 +376,6 @@ function showFieldSuccess(field) {
     // Animación de pulso
     field.style.animation = 'pulse 0.3s ease-out';
     setTimeout(() => field.style.animation = '', 300);
-}
-
-// Mostrar error en campo con animación
-function showFieldError(field, message) {
-    clearFieldError(field);
-    
-    field.classList.add('invalid');
-    field.classList.remove('valid');
-    field.style.borderColor = 'var(--error-red)';
-    field.style.background = 'rgba(239, 68, 68, 0.05)';
-    
-    // Mensaje de error
-    const errorDiv = document.createElement('div');
-    errorDiv.className = 'field-error';
-    errorDiv.style.cssText = `
-        color: var(--error-red);
-        font-size: 0.875rem;
-        margin-top: 6px;
-        opacity: 0;
-        transform: translateY(-10px);
-        animation: slideInUp 0.3s ease-out forwards;
-    `;
-    errorDiv.textContent = message;
-    
-    // Icono de error
-    const errorIcon = document.createElement('div');
-    errorIcon.className = 'field-icon error-icon';
-    errorIcon.innerHTML = '⚠';
-    errorIcon.style.cssText = `
-        position: absolute;
-        right: 12px;
-        top: 50%;
-        transform: translateY(-50%) scale(0);
-        color: var(--error-red);
-        font-weight: bold;
-        animation: shake 0.5s ease-out, bounceIn 0.5s ease-out forwards;
-    `;
-    
-    field.parentNode.style.position = 'relative';
-    field.parentNode.appendChild(errorDiv);
-    field.parentNode.appendChild(errorIcon);
-    
-    // Animación de shake
-    field.style.animation = 'shake 0.5s ease-out';
-    setTimeout(() => field.style.animation = '', 500);
-}
-
-// Limpiar error de campo
-function clearFieldError(field) {
-    const errorDiv = field.parentNode.querySelector('.field-error');
-    const icons = field.parentNode.querySelectorAll('.field-icon');
-    
-    if (errorDiv) {
-        errorDiv.style.animation = 'fadeOut 0.3s ease-out';
-        setTimeout(() => errorDiv.remove(), 300);
-    }
-    
-    icons.forEach(icon => {
-        icon.style.animation = 'fadeOut 0.3s ease-out';
-        setTimeout(() => icon.remove(), 300);
-    });
-    
-    field.classList.remove('valid', 'invalid');
-    field.style.borderColor = 'var(--neutral-200)';
-    field.style.background = 'white';
 }
 
 // Configurar envío del formulario con animaciones
@@ -651,7 +651,7 @@ function showNotification(message, type = 'success') {
     setTimeout(() => {
         notification.style.animation = 'slideOutRight 0.5s ease-out';
         setTimeout(() => notification.remove(), 500);
-    }, 4000);
+    }, 1000);
 }
 
 // Función para cancelar con animación
