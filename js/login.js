@@ -461,7 +461,8 @@ async function authenticateUser(tipoId, numeroId, password) {
 function showLoadingState(isLoading) {
     const submitButton = document.querySelector('#loginForm button[type="submit"]');
     const form = document.getElementById('loginForm');
-    
+    if (!submitButton) return;
+
     if (isLoading) {
         submitButton.disabled = true;
         submitButton.innerHTML = `
@@ -469,33 +470,36 @@ function showLoadingState(isLoading) {
             Iniciando sesión...
         `;
         submitButton.style.opacity = '0.8';
-        
+
         // Deshabilitar campos
         const inputs = form.querySelectorAll('input, select');
         inputs.forEach(input => {
             input.disabled = true;
             input.style.opacity = '0.7';
         });
-        
+
         // Efecto de pulso en la tarjeta
         const card = document.querySelector('.login-card');
         card.style.animation = 'pulse 2s ease-in-out infinite';
-        
+
+        // NO CAMBIES LA OPACIDAD DEL FORMULARIO COMPLETO
+        // form.style.opacity = '0.7'; // <-- Elimina o comenta esta línea si existe
     } else {
         submitButton.disabled = false;
         submitButton.innerHTML = 'Iniciar Sesión';
         submitButton.style.opacity = '1';
-        
+
         // Habilitar campos
         const inputs = form.querySelectorAll('input, select');
         inputs.forEach(input => {
             input.disabled = false;
             input.style.opacity = '1';
         });
-        
+
         // Remover efecto de pulso
         const card = document.querySelector('.login-card');
         card.style.animation = '';
+        // form.style.opacity = '1'; // <-- Elimina o comenta esta línea si existe
     }
 }
 
@@ -535,85 +539,196 @@ function createProgressBar() {
     return progressBar;
 }
 
-// Mostrar animación de éxito
+// Mostrar animación de éxito sin reemplazar el formulario
 async function showSuccessAnimation() {
-    const form = document.querySelector('.form');
+    // Crear overlay oscuro para toda la página que permita ver el formulario detrás
+    const overlay = document.createElement('div');
+    overlay.style.cssText = `
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background-color: rgba(0, 0, 0, 0.7);
+        z-index: 9999;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        opacity: 0;
+        transition: opacity 0.5s ease;
+        backdrop-filter: blur(5px);
+    `;
+    document.body.appendChild(overlay);
     
-    // Ocultar formulario
-    form.style.animation = 'fadeOut 0.5s ease-out';
+    // Permitir que se renderice antes de la animación
+    setTimeout(() => {
+        overlay.style.opacity = '1';
+    }, 10);
     
-    await new Promise(resolve => setTimeout(resolve, 500));
+    // Crear contenedor de animación de carga
+    const loaderContainer = document.createElement('div');
+    loaderContainer.style.cssText = `
+        text-align: center;
+        transform: scale(0.8);
+        opacity: 0;
+        transition: all 0.5s ease;
+        background-color: rgba(15, 23, 42, 0.8);
+        padding: 40px;
+        border-radius: 16px;
+        box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+        backdrop-filter: blur(10px);
+        border: 1px solid rgba(255, 255, 255, 0.1);
+    `;
     
-    // Mostrar mensaje de éxito
-    form.innerHTML = `
-        <div class="success-container" style="text-align: center; padding: 40px 0;">
-            <div class="success-icon" style="
-                width: 80px;
-                height: 80px;
-                background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%);
+    loaderContainer.innerHTML = `
+        <div class="spinner-container" style="position: relative; width: 120px; height: 120px; margin: 0 auto 30px;">
+            <div class="spinner-outer" style="
+                position: absolute;
+                width: 120px;
+                height: 120px;
                 border-radius: 50%;
-                display: flex;
-                align-items: center;
-                justify-content: center;
-                margin: 0 auto 24px;
-                color: white;
-                font-size: 2.5rem;
-                font-weight: bold;
-                animation: bounceIn 1s ease-out;
+                border: 3px solid transparent;
+                border-top-color: #3b82f6;
+                animation: spin 1.5s linear infinite;
+            "></div>
+            <div class="spinner-middle" style="
+                position: absolute;
+                width: 90px;
+                height: 90px;
+                top: 15px;
+                left: 15px;
+                border-radius: 50%;
+                border: 3px solid transparent;
+                border-top-color: #60a5fa;
+                animation: spin 2s linear infinite reverse;
+            "></div>
+            <div class="spinner-inner" style="
+                position: absolute;
+                width: 60px;
+                height: 60px;
+                top: 30px;
+                left: 30px;
+                border-radius: 50%;
+                border: 3px solid transparent;
+                border-top-color: #93c5fd;
+                animation: spin 1s linear infinite;
+            "></div>
+            <div class="checkmark" style="
+                position: absolute;
+                top: 50%;
+                left: 50%;
+                transform: translate(-50%, -50%) scale(0);
+                color: #4ade80;
+                font-size: 40px;
+                opacity: 0;
+                transition: all 0.5s ease;
             ">✓</div>
-            
-            <h2 style="
-                color: var(--success-green);
-                margin-bottom: 16px;
-                font-size: 1.5rem;
-                animation: slideInUp 0.6s ease-out 0.3s both;
-            ">¡Bienvenido!</h2>
-            
-            <p style="
-                color: var(--neutral-600);
-                margin-bottom: 24px;
-                animation: slideInUp 0.6s ease-out 0.5s both;
-            ">Inicio de sesión exitoso</p>
-            
+        </div>
+        <h2 style="color: white; font-size: 24px; margin-bottom: 15px; opacity: 0; transform: translateY(20px); transition: all 0.5s ease;">¡Inicio exitoso!</h2>
+        <p style="color: #94a3b8; margin-bottom: 30px; opacity: 0; transform: translateY(20px); transition: all 0.5s ease 0.2s;">Redirigiendo al dashboard...</p>
+        <div class="loading-bar-container" style="
+            width: 250px;
+            height: 4px;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 2px;
+            overflow: hidden;
+            margin: 0 auto;
+        ">
             <div class="loading-bar" style="
-                width: 100%;
-                height: 4px;
-                background: rgba(37, 99, 235, 0.1);
+                height: 100%;
+                width: 0;
+                background: linear-gradient(90deg, #3b82f6, #8b5cf6);
                 border-radius: 2px;
-                overflow: hidden;
-                animation: slideInUp 0.6s ease-out 0.7s both;
-            ">
-                <div style="
-                    height: 100%;
-                    background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
-                    width: 0%;
-                    animation: loadingProgress 2s ease-out forwards;
-                "></div>
-            </div>
+                transition: width 2s ease-out;
+            "></div>
         </div>
     `;
     
-    form.style.animation = 'fadeIn 0.5s ease-out';
+    overlay.appendChild(loaderContainer);
+    
+    // Animar entrada del contenedor
+    setTimeout(() => {
+        loaderContainer.style.transform = 'scale(1)';
+        loaderContainer.style.opacity = '1';
+        
+        // Animar textos después
+        setTimeout(() => {
+            const h2 = loaderContainer.querySelector('h2');
+            const p = loaderContainer.querySelector('p');
+            const bar = loaderContainer.querySelector('.loading-bar');
+            
+            if (h2) {
+                h2.style.opacity = '1';
+                h2.style.transform = 'translateY(0)';
+            }
+            
+            if (p) {
+                p.style.opacity = '1';
+                p.style.transform = 'translateY(0)';
+            }
+            
+            if (bar) {
+                bar.style.width = '100%';
+            }
+            
+            // Mostrar checkmark al final
+            setTimeout(() => {
+                const spinners = loaderContainer.querySelectorAll('.spinner-outer, .spinner-middle, .spinner-inner');
+                const checkmark = loaderContainer.querySelector('.checkmark');
+                
+                spinners.forEach(spinner => {
+                    spinner.style.opacity = '0';
+                    spinner.style.transition = 'opacity 0.5s ease';
+                });
+                
+                if (checkmark) {
+                    checkmark.style.transform = 'translate(-50%, -50%) scale(1)';
+                    checkmark.style.opacity = '1';
+                }
+            }, 1500);
+        }, 300);
+    }, 100);
 }
 
 // Mostrar error de login con animación
 function showLoginError() {
     const card = document.querySelector('.login-card');
-    
-    // Efecto de shake en toda la tarjeta
-    card.style.animation = 'shake 0.6s ease-out';
-    
-    // Mostrar mensaje de error
-    showMessage('error', '⚠ Credenciales incorrectas. Verifique su información e intente nuevamente.');
+    if (card) {
+        card.style.display = 'block';
+        card.style.opacity = '1';
+        card.style.animation = 'shake 0.6s ease-out';
+    }
+    const form = document.getElementById('loginForm');
+    if (form) {
+        form.style.display = 'block';
+        form.style.opacity = '1';
+    }
+
+    // Mostrar mensaje de error con posicionamiento absoluto para no desplazar elementos
+    const errorDiv = document.getElementById('errorMessage');
+    if (errorDiv) {
+        errorDiv.innerHTML = '⚠ Credenciales incorrectas. Verifique su información e intente nuevamente.';
+        errorDiv.style.display = 'block';
+        errorDiv.style.position = 'relative';
+        errorDiv.style.animation = 'fadeIn 0.5s ease-out';
+        errorDiv.style.maxHeight = '60px';
+        errorDiv.style.marginBottom = '15px'; // Espacio adicional para evitar solapamiento
+    }
     
     // Limpiar campos de contraseña
     const passwordField = document.getElementById('password');
-    passwordField.value = '';
-    passwordField.focus();
+    if (passwordField) {
+        passwordField.value = '';
+        passwordField.focus();
+    }
     
-    // Efecto visual en campos
+    // Restaurar los campos al estado normal con efecto visual de error
     const inputs = document.querySelectorAll('#loginForm input, #loginForm select');
     inputs.forEach(input => {
+        // Asegurar que los inputs son visibles y habilitados
+        input.style.display = 'block';
+        input.disabled = false;
+        
         if (input.value) {
             input.style.borderColor = 'var(--error-red)';
             input.style.background = 'rgba(239, 68, 68, 0.05)';
@@ -625,6 +740,15 @@ function showLoginError() {
         }
     });
     
+    // Restaurar el botón de envío
+    const submitButton = form.querySelector('button[type="submit"]');
+    if (submitButton) {
+        submitButton.disabled = false;
+        submitButton.innerHTML = 'Iniciar Sesión';
+        submitButton.style.opacity = '1';
+    }
+    
+    // Resetear animación
     setTimeout(() => {
         card.style.animation = '';
     }, 600);
@@ -710,19 +834,14 @@ additionalStyles.textContent = `
         100% { width: 100%; }
     }
     
-    @keyframes slideInRight {
-        from { transform: translateX(100%); opacity: 0; }
-        to { transform: translateX(0); opacity: 1; }
+    @keyframes spin {
+        0% { transform: rotate(0deg); }
+        100% { transform: rotate(360deg); }
     }
     
-    @keyframes slideOutRight {
-        from { transform: translateX(0); opacity: 1; }
-        to { transform: translateX(100%); opacity: 0; }
-    }
-    
-    @keyframes ripple {
-        0% { transform: scale(0); opacity: 1; }
-        100% { transform: scale(2); opacity: 0; }
+    @keyframes fadeIn {
+        from { opacity: 0; transform: translateY(10px); }
+        to { opacity: 1; transform: translateY(0); }
     }
     
     .loading-spinner {
@@ -734,11 +853,6 @@ additionalStyles.textContent = `
         border-radius: 50%;
         animation: spin 1s linear infinite;
         margin-right: 8px;
-    }
-    
-    @keyframes spin {
-        0% { transform: rotate(0deg); }
-        100% { transform: rotate(360deg); }
     }
     
     .notification-content {
@@ -779,3 +893,29 @@ async function hashPassword(password) {
     const hashArray = Array.from(new Uint8Array(hashBuffer));
     return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
 }
+
+// Estilos de fondo fijos
+const fixBgStyles = document.createElement('style');
+fixBgStyles.textContent = `
+html, body {
+    height: 100%;
+    min-height: 100%;
+    background: linear-gradient(135deg, #6b73ff 0%, #000dff 100%);
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+body {
+    min-height: 100vh;
+    height: 100vh;
+    background: linear-gradient(135deg, #6b73ff 0%, #000dff 100%);
+    overflow-x: hidden;
+}
+.container {
+    min-height: 100vh;
+    height: 100vh;
+    position: relative;
+    background: transparent;
+}
+`;
+document.head.appendChild(fixBgStyles);

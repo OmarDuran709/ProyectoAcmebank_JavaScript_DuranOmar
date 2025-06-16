@@ -22,7 +22,7 @@
                 <li role="none"><a href="#" onclick="showSection('servicios')" class="menu-item" role="menuitem" tabindex="0">🧾 Pago de Servicios</a></li>
                 <li role="none"><a href="#" onclick="showSection('extracto')" class="menu-item" role="menuitem" tabindex="0">📄 Extracto Bancario</a></li>
                 <li role="none"><a href="#" onclick="showSection('certificado')" class="menu-item" role="menuitem" tabindex="0">🏆 Certificado Bancario</a></li>
-                <li role="none"><a href="login.html" class="menu-item" role="menuitem" tabindex="0">🚪 Cerrar Sesión</a></li>
+                <li role="none"><a href="#" onclick="logout()" class="menu-item" role="menuitem" tabindex="0">🚪 Cerrar Sesión</a></li>
             </ul>
         </nav>
 
@@ -50,9 +50,11 @@
                         </div>
                     </div>
                 </div>
-                <div style="margin-top: 32px; text-align: right;">
-                    <button class="btn btn-danger" id="deleteAccountBtn" aria-label="Eliminar cuenta" style="background: #dc2626; color: #fff;">
-                        🗑️ Eliminar mi cuenta
+                <div class="danger-zone" style="margin-top: 50px; padding: 20px; border: 1px solid #fee2e2; background-color: #fef2f2; border-radius: 8px;">
+                    <h3 style="color: #dc2626; margin-top: 0;">Zona de Peligro</h3>
+                    <p>Una vez que elimines tu cuenta, no hay vuelta atrás. Por favor, asegúrate de que realmente quieres hacer esto.</p>
+                    <button id="deleteAccountBtn" class="btn btn-danger" style="background-color: #dc2626; color: white;">
+                        Eliminar mi Cuenta
                     </button>
                 </div>
             </section>
@@ -61,7 +63,6 @@
             <section id="transacciones" class="content-section" aria-labelledby="transacciones-title" tabindex="0">
                 <div class="section-header">
                     <h1 id="transacciones-title">Últimas 10 Transacciones</h1>
-                    <button class="btn btn-primary" onclick="window.print()" aria-label="Imprimir resumen de transacciones">Imprimir</button>
                 </div>
                 <div class="transactions-table" role="region" aria-label="Tabla de transacciones">
                     <table>
@@ -78,6 +79,11 @@
                             <!-- Las filas se llenan dinámicamente con JS -->
                         </tbody>
                     </table>
+                </div>
+                
+                <!-- Agregar botón centrado debajo de la tabla -->
+                <div style="text-align: center; margin-top: 32px;">
+                    <button id="printTransactionsBtn" class="btn btn-primary" aria-label="Imprimir Transacciones">Imprimir Transacciones</button>
                 </div>
             </section>
 
@@ -114,7 +120,7 @@
                     <form id="retiroForm" autocomplete="off">
                         <div class="form-group">
                             <label for="valorRetiro">Cantidad a Retirar</label>
-                            <input type="number" id="valorRetiro" min="1" step="0.01" max="2500000" required aria-required="true" aria-label="Cantidad a Retirar">
+                            <input type="number" id="valorRetiro" min="1" step="0.01" required aria-required="true" aria-label="Cantidad a Retirar">
                         </div>
                         <div id="retiroMessage" class="alert" style="display: none;" role="alert" aria-live="assertive"></div>
                         <button type="submit" class="btn btn-primary" aria-label="Realizar Retiro">Realizar Retiro</button>
@@ -149,7 +155,7 @@
                         </div>
                         <div class="form-group">
                             <label for="valorServicio">Valor a Pagar</label>
-                            <input type="number" id="valorServicio" min="1" step="0.01" max="2500000" required aria-required="true" aria-label="Valor a Pagar">
+                            <input type="number" id="valorServicio" min="1" step="0.01" required aria-required="true" aria-label="Valor a Pagar">
                         </div>
                         <div id="serviciosMessage" class="alert" style="display: none;" role="alert" aria-live="assertive"></div>
                         <button type="submit" class="btn btn-primary" aria-label="Realizar Pago">Realizar Pago</button>
@@ -162,8 +168,8 @@
                 <h1 id="extracto-title">Extracto Bancario</h1>
                 <div class="extract-form" role="region" aria-label="Formulario de extracto bancario">
                     <div class="account-info-box">
-                        <p><strong>Número de Cuenta:</strong> 1234567890</p>
-                        <p><strong>Titular:</strong> Juan Pérez</p>
+                        <p><strong>Número de Cuenta:</strong> <span id="extracto-numero-cuenta"></span></p>
+                        <p><strong>Titular:</strong> <span id="extracto-titular"></span></p>
                     </div>
                     <div class="form-row">
                         <div class="form-group">
@@ -175,7 +181,7 @@
                             <select id="mes" aria-label="Mes"></select>
                         </div>
                     </div>
-                    <button class="btn btn-primary" onclick="window.print()" aria-label="Imprimir Extracto">Imprimir Extracto</button>
+                    
                     <div class="transactions-table" role="region" aria-label="Tabla de extracto bancario">
                         <table>
                             <thead>
@@ -192,6 +198,11 @@
                             </tbody>
                         </table>
                     </div>
+                    
+                    <!-- Botón reposicionado y centrado -->
+                    <div style="text-align: center; margin-top: 32px;">
+                        <button id="printExtractBtn" class="btn btn-primary" aria-label="Imprimir Extracto">Imprimir Extracto</button>
+                    </div>
                 </div>
             </section>
 
@@ -199,7 +210,6 @@
             <section id="certificado" class="content-section" aria-labelledby="certificado-title" tabindex="0">
                 <div class="section-header">
                     <h1 id="certificado-title">Certificado Bancario</h1>
-                    <button class="btn btn-primary" onclick="window.print()" aria-label="Imprimir Certificado">Imprimir Certificado</button>
                 </div>
                 <div class="certificate" role="region" aria-label="Certificado bancario">
                     <div class="certificate-header">
@@ -207,9 +217,22 @@
                         <p>CERTIFICADO BANCARIO</p>
                     </div>
                     <div class="certificate-content">
-                        <p><strong>EL BANCO DIGITAL</strong> certifica que el(la) señor(a) <strong>Juan Pérez</strong>, identificado(a) con CC número <strong>12345678</strong>, es titular de la cuenta de ahorros número <strong>1234567890</strong>.</p>
-                        <p>La mencionada cuenta fue abierta el <strong>15/01/2024</strong> y se encuentra <strong>ACTIVA</strong> a la fecha de expedición del presente certificado.</p>
-                        <p>Este certificado se expide a solicitud del interesado para los fines que estime convenientes.</p>
+                        <p>
+        <strong>EL BANCO DIGITAL</strong> certifica que el(la) señor(a)
+        <strong><span id="certificado-nombre"></span></strong>,
+        identificado(a) con <span id="certificado-tipo-id"></span> número
+        <strong><span id="certificado-numero-id"></span></strong>,
+        es titular de la cuenta de ahorros número
+        <strong><span id="certificado-numero-cuenta"></span></strong>.
+    </p>
+    <p>
+        La mencionada cuenta fue abierta el
+        <strong><span id="certificado-fecha-creacion"></span></strong>
+        y se encuentra <strong>ACTIVA</strong> a la fecha de expedición del presente certificado.
+    </p>
+    <p>
+        Este certificado se expide a solicitud del interesado para los fines que estime convenientes.
+    </p>
                         <div class="certificate-footer">
                             <p><strong>Fecha de expedición:</strong> <span id="fechaActual"></span></p>
                             <div class="signature">
@@ -219,6 +242,11 @@
                             </div>
                         </div>
                     </div>
+                </div>
+
+                <!-- Agregar botón centrado al final del certificado -->
+                <div style="text-align: center; margin-top: 32px;">
+                    <button id="printCertificateBtn" class="btn btn-primary" aria-label="Imprimir Certificado">Imprimir Certificado</button>
                 </div>
             </section>
         </main>
@@ -234,6 +262,18 @@
             <div style="display: flex; gap: 16px; justify-content: flex-end;">
                 <button id="cancelDeleteBtn" class="btn btn-secondary" type="button">Cancelar</button>
                 <button id="confirmDeleteBtn" class="btn btn-danger" type="button" style="background: #dc2626;">Eliminar</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal para confirmación de cierre de sesión -->
+    <div id="logoutModal" class="modal-overlay" style="display:none;" role="dialog" aria-modal="true" aria-labelledby="logoutModalTitle" tabindex="-1">
+        <div class="modal-content" role="document">
+            <h2 id="logoutModalTitle" style="margin-bottom: 16px;">¿Cerrar sesión?</h2>
+            <p style="margin-bottom: 24px;">¿Estás seguro de que deseas cerrar sesión?</p>
+            <div style="display: flex; gap: 16px; justify-content: flex-end;">
+                <button id="cancelLogoutBtn" class="btn btn-secondary" type="button">Cancelar</button>
+                <button id="confirmLogoutBtn" class="btn btn-danger" onclick="logout()">Confirmar</button>
             </div>
         </div>
     </div>

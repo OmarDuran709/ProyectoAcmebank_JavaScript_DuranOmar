@@ -388,53 +388,81 @@ function clearFieldError(field) {
 // Configurar envío del formulario con animaciones
 function setupFormSubmission() {
     const form = document.getElementById('registerForm');
-    if (!form) return; // <-- Solución: salir si no existe el formulario
+    if (!form) return;
+
+    // Variable local para control de envío
+    let isSubmittingForm = false;
+    
+    // Añadir un indicador visual al botón desde el principio
+    const submitButton = form.querySelector('button[type="submit"]');
+    if (submitButton) {
+        submitButton.addEventListener('click', function(e) {
+            if (isSubmittingForm) {
+                e.preventDefault();
+                e.stopPropagation();
+                return false;
+            }
+        });
+    }
 
     form.addEventListener('submit', async function(e) {
         e.preventDefault();
         
-        if (window.isSubmitting) return;
-        
-        // Validar todos los campos
-        const inputs = form.querySelectorAll('input, select');
-        let isFormValid = true;
-        
-        // Animación de validación secuencial
-        for (let i = 0; i < inputs.length; i++) {
-            const input = inputs[i];
-            if (!validateFieldWithAnimation(input) || !input.value.trim()) {
-                isFormValid = false;
-            }
-            await new Promise(resolve => setTimeout(resolve, 50));
+        // Verificación robusta anti-duplicados
+        if (isSubmittingForm || window.isSubmitting) {
+            console.log('Formulario ya está enviándose, ignorando evento');
+            return false;
         }
         
-        if (!isFormValid) {
-            showMessage('error', '⚠ Por favor corrija los errores en el formulario');
-            // Scroll al primer error
-            const firstError = form.querySelector('.invalid');
-            if (firstError) {
-                firstError.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                firstError.focus();
-            }
-            return;
-        }
-        
+        // Bloquear envíos inmediatamente
+        isSubmittingForm = true;
         window.isSubmitting = true;
         
-        // Recopilar datos del formulario
-        const formData = new FormData(form);
-        const userData = Object.fromEntries(formData);
+        // Deshabilitar botón inmediatamente
+        if (submitButton) {
+            submitButton.disabled = true;
+        }
         
         try {
+            // Validar todos los campos
+            const inputs = form.querySelectorAll('input, select');
+            let isFormValid = true;
+            
+            // Animación de validación secuencial
+            for (let i = 0; i < inputs.length; i++) {
+                const input = inputs[i];
+                if (!validateFieldWithAnimation(input) || !input.value.trim()) {
+                    isFormValid = false;
+                }
+                await new Promise(resolve => setTimeout(resolve, 50));
+            }
+            
+            if (!isFormValid) {
+                showMessage('error', '⚠ Por favor corrija los errores en el formulario');
+                // Scroll al primer error
+                const firstError = form.querySelector('.invalid');
+                if (firstError) {
+                    firstError.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                    firstError.focus();
+                }
+                return;
+            }
+            
+            // Recopilar datos del formulario
+            const formData = new FormData(form);
+            const userData = Object.fromEntries(formData);
+            
             // Mostrar loading en botón
-            const submitButton = form.querySelector('button[type="submit"]');
             setButtonLoading(submitButton, true, 'Creando cuenta...');
             
             console.log('📝 Intentando registrar usuario:', userData.nombres, userData.apellidos);
             console.log('🆔 Identificación:', userData.tipoId, userData.numeroId);
             
-            // Verificar si el usuario ya existe usando el método correcto
-            const userExists = await window.dbManager.checkUserExists(userData.tipoId, userData.numeroId);
+            // Verificación adicional antes de crear el usuario
+            const userExists = await window.dbManager.checkUserExists(
+                formData.get('tipoId'),
+                formData.get('numeroId')
+            );
             
             if (userExists) {
                 throw new Error('Ya existe un usuario registrado con esta identificación');
@@ -457,9 +485,15 @@ function setupFormSubmission() {
         } catch (error) {
             console.error('❌ Error al registrar usuario:', error);
             showMessage('error', error.message || 'Error al crear la cuenta. Por favor intente nuevamente.');
-            setButtonLoading(form.querySelector('button[type="submit"]'), false);
         } finally {
-            window.isSubmitting = false;
+            // Restablecer estado solo después de que todo haya terminado
+            setTimeout(() => {
+                isSubmittingForm = false;
+                window.isSubmitting = false;
+                if (submitButton) {
+                    setButtonLoading(submitButton, false);
+                }
+            }, 1000);
         }
     });
 }
@@ -487,7 +521,8 @@ async function createUser(formData) {
             password: await hashPassword(formData.password),
             numeroCuenta: window.dbManager.generateAccountNumber(),
             fechaCreacion: new Date().toLocaleDateString(),
-            saldo: 0
+            saldo: 0,
+            transacciones: [] // <-- Agrega esta línea
         };
         
         // Guardar usuario en la base de datos
@@ -505,63 +540,152 @@ async function createUser(formData) {
 }
 
 // Mostrar animación de éxito
-async function showSuccessAnimation(newUser) {
-    const form = document.querySelector('.form');
-    form.style.animation = 'fadeOut 0.5s ease-out';
-    await new Promise(resolve => setTimeout(resolve, 500));
-
-    // Verifica que newUser exista y tenga numeroCuenta
-    const numeroCuenta = newUser && newUser.numeroCuenta ? newUser.numeroCuenta : '----';
-
-    form.innerHTML = `
-        <div class="success-container" style="text-align: center; padding: 40px 0;">
-            <div class="success-icon" style="
-                width: 80px;
-                height: 80px;
-                background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%);
+async function showSuccessAnimation() {
+    // Crear overlay oscuro para toda la página
+    const overlay = document.createElement('div');
+    overlay.style.cssText = `
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background-color: rgba(0, 0, 0, 0.85);
+        z-index: 9999;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        opacity: 0;
+        transition: opacity 0.5s ease;
+    `;
+    document.body.appendChild(overlay);
+    
+    // Permitir que se renderice antes de la animación
+    setTimeout(() => {
+        overlay.style.opacity = '1';
+    }, 10);
+    
+    // Crear contenedor de animación de carga
+    const loaderContainer = document.createElement('div');
+    loaderContainer.style.cssText = `
+        text-align: center;
+        transform: scale(0.8);
+        opacity: 0;
+        transition: all 0.5s ease;
+    `;
+    
+    loaderContainer.innerHTML = `
+        <div class="spinner-container" style="position: relative; width: 120px; height: 120px; margin: 0 auto 30px;">
+            <div class="spinner-outer" style="
+                position: absolute;
+                width: 120px;
+                height: 120px;
                 border-radius: 50%;
-                display: flex;
-                align-items: center;
-                justify-content: center;
-                margin: 0 auto 24px;
-                color: white;
-                font-size: 2.5rem;
-                font-weight: bold;
-                animation: bounceIn 1s ease-out;
+                border: 3px solid transparent;
+                border-top-color: #3b82f6;
+                animation: spin 1.5s linear infinite;
+            "></div>
+            <div class="spinner-middle" style="
+                position: absolute;
+                width: 90px;
+                height: 90px;
+                top: 15px;
+                left: 15px;
+                border-radius: 50%;
+                border: 3px solid transparent;
+                border-top-color: #60a5fa;
+                animation: spin 2s linear infinite reverse;
+            "></div>
+            <div class="spinner-inner" style="
+                position: absolute;
+                width: 60px;
+                height: 60px;
+                top: 30px;
+                left: 30px;
+                border-radius: 50%;
+                border: 3px solid transparent;
+                border-top-color: #93c5fd;
+                animation: spin 1s linear infinite;
+            "></div>
+            <div class="checkmark" style="
+                position: absolute;
+                top: 50%;
+                left: 50%;
+                transform: translate(-50%, -50%) scale(0);
+                color: #4ade80;
+                font-size: 40px;
+                opacity: 0;
+                transition: all 0.5s ease;
             ">✓</div>
-            <h2 style="
-                color: var(--success-green);
-                margin-bottom: 16px;
-                font-size: 1.5rem;
-                animation: slideInUp 0.6s ease-out 0.3s both;
-            ">¡Bienvenido!</h2>
-            <p style="
-                color: var(--neutral-600);
-                margin-bottom: 24px;
-                animation: slideInUp 0.6s ease-out 0.5s both;
-            ">Inicio de sesión exitoso</p>
-            <div style="margin-bottom: 16px; font-size: 1.1rem;">
-                <strong>Número de cuenta:</strong> ${numeroCuenta}
-            </div>
+        </div>
+        <h2 style="color: white; font-size: 24px; margin-bottom: 15px; opacity: 0; transform: translateY(20px); transition: all 0.5s ease;">¡Inicio exitoso!</h2>
+        <p style="color: #94a3b8; margin-bottom: 30px; opacity: 0; transform: translateY(20px); transition: all 0.5s ease 0.2s;">Redirigiendo al dashboard...</p>
+        <div class="loading-bar-container" style="
+            width: 250px;
+            height: 4px;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 2px;
+            overflow: hidden;
+            margin: 0 auto;
+        ">
             <div class="loading-bar" style="
-                width: 100%;
-                height: 4px;
-                background: rgba(37, 99, 235, 0.1);
+                height: 100%;
+                width: 0;
+                background: linear-gradient(90deg, #3b82f6, #8b5cf6);
                 border-radius: 2px;
-                overflow: hidden;
-                animation: slideInUp 0.6s ease-out 0.7s both;
-            ">
-                <div style="
-                    height: 100%;
-                    background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
-                    width: 0%;
-                    animation: loadingProgress 2s ease-out forwards;
-                "></div>
-            </div>
+                transition: width 2s ease-out;
+            "></div>
         </div>
     `;
-
-    form.style.animation = 'fadeIn 0.5s ease-out';
+    
+    overlay.appendChild(loaderContainer);
+    
+    // Animar entrada del contenedor
+    setTimeout(() => {
+        loaderContainer.style.transform = 'scale(1)';
+        loaderContainer.style.opacity = '1';
+        
+        // Animar textos después
+        setTimeout(() => {
+            const h2 = loaderContainer.querySelector('h2');
+            const p = loaderContainer.querySelector('p');
+            const bar = loaderContainer.querySelector('.loading-bar');
+            
+            if (h2) {
+                h2.style.opacity = '1';
+                h2.style.transform = 'translateY(0)';
+            }
+            
+            if (p) {
+                p.style.opacity = '1';
+                p.style.transform = 'translateY(0)';
+            }
+            
+            if (bar) {
+                bar.style.width = '100%';
+            }
+            
+            // Mostrar checkmark al final
+            setTimeout(() => {
+                const spinners = loaderContainer.querySelectorAll('.spinner-outer, .spinner-middle, .spinner-inner');
+                const checkmark = loaderContainer.querySelector('.checkmark');
+                
+                spinners.forEach(spinner => {
+                    spinner.style.opacity = '0';
+                    spinner.style.transition = 'opacity 0.5s ease';
+                });
+                
+                if (checkmark) {
+                    checkmark.style.transform = 'translate(-50%, -50%) scale(1)';
+                    checkmark.style.opacity = '1';
+                }
+            }, 1500);
+        }, 300);
+    }, 100);
+    
+    // Establecer la sesión y guardar currentUser aquí (código existente)
+    // ...
+    
+    // No eliminamos el overlay, lo dejamos hasta la redirección
 }
 
 // Configurar estado de loading en botones
@@ -654,75 +778,17 @@ function cancelRegistration() {
 // Inicializar "db.json" en localStorage si no existe
 async function loadInitialDB() {
     if (!localStorage.getItem('db')) {
-        // Carga el contenido de db.json aquí manualmente (copiado del archivo real)
+        // Base de datos vacía, sin usuarios ni transacciones de prueba
         const initialDB = {
-            "users": [
-                {
-                    "id": "1",
-                    "tipoIdentificacion": "CC",
-                    "numeroIdentificacion": "12345678",
-                    "nombres": "Juan Carlos",
-                    "apellidos": "Pérez González",
-                    "genero": "M",
-                    "telefono": "3001234567",
-                    "email": "juan.perez@email.com",
-                    "direccion": "Calle 123 #45-67",
-                    "ciudad": "Bogotá",
-                    "password": "123456",
-                    "numeroCuenta": "1234567890",
-                    "fechaCreacion": "15/01/2024",
-                    "saldo": 2500000,
-                    "fechaRegistro": "2024-01-15T10:30:00.000Z",
-                    "ultimoAcceso": "2024-12-15T14:20:00.000Z"
-                },
-                {
-                    "id": "2",
-                    "tipoIdentificacion": "CC",
-                    "numeroIdentificacion": "87654321",
-                    "nombres": "María Elena",
-                    "apellidos": "García López",
-                    "genero": "F",
-                    "telefono": "3009876543",
-                    "email": "maria.garcia@email.com",
-                    "direccion": "Carrera 45 #12-34",
-                    "ciudad": "Medellín",
-                    "password": "password123",
-                    "numeroCuenta": "0987654321",
-                    "fechaCreacion": "20/02/2024",
-                    "saldo": 1800000,
-                    "fechaRegistro": "2024-02-20T09:15:00.000Z",
-                    "ultimoAcceso": "2024-12-14T16:45:00.000Z"
-                }
-            ],
-            "transactions": [
-                {
-                    "id": "1",
-                    "fecha": "15/12/2024",
-                    "numeroReferencia": "123456",
-                    "tipo": "consignacion",
-                    "concepto": "Consignación inicial",
-                    "valor": 2500000,
-                    "numeroCuenta": "1234567890",
-                    "fechaCreacion": "2024-01-15T10:30:00.000Z"
-                },
-                {
-                    "id": "2",
-                    "fecha": "20/12/2024",
-                    "numeroReferencia": "789012",
-                    "tipo": "consignacion",
-                    "concepto": "Consignación inicial",
-                    "valor": 1800000,
-                    "numeroCuenta": "0987654321",
-                    "fechaCreacion": "2024-02-20T09:15:00.000Z"
-                }
-            ],
+            "users": [],
+            "transactions": [],
             "settings": {
                 "version": "1.0.0",
-                "lastBackup": "2024-12-15T18:00:00.000Z",
+                "lastBackup": null,
                 "maxTransactionAmount": 10000000,
                 "dailyTransactionLimit": 50000000
             },
-            "lastUpdated": "2024-12-15T18:00:00.000Z"
+            "lastUpdated": null
         };
         localStorage.setItem('db', JSON.stringify(initialDB));
     }
