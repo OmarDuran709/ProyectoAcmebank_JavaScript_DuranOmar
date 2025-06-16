@@ -111,7 +111,7 @@ Banco JavaScript/
 
 ## Créditos
 
-Desarrollado por Omar Durán para el proyecto final de JavaScript - Banco Acme.
+Desarrollado por Omar Durán y Jorge pinzon para el proyecto final de JavaScript - Banco Acme.
 
 ---
 
