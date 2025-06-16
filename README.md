@@ -59,7 +59,7 @@
    git clone https://github.com/OmarDuran709/ProyectoAcmebank_JavaScript_DuranOmar.git
    ```
 2. **Abre la carpeta del proyecto en tu editor o IDE favorito.**
-3. **Abre el archivo `index.html` o `login.html` en tu navegador.**
+3. **Abre el archivo `login.html` en tu navegador.**
 4. **¡Listo! Puedes comenzar a usar la plataforma.**
 
 > No se requiere backend ni instalación de dependencias externas. Todo funciona en el navegador.

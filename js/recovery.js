@@ -159,9 +159,6 @@ function createRippleEffect(event) {
 
 // Configurar elementos interactivos
 function setupInteractiveElements() {
-    // Indicador de progreso
-    createProgressIndicator();
-    
     // Efecto de typing en el título
     const title = document.querySelector('.card-header h1');
     if (title) {
@@ -179,92 +176,6 @@ function setupInteractiveElements() {
         
         setTimeout(typeWriter, 500);
     }
-}
-
-// Crear indicador de progreso
-function createProgressIndicator() {
-    const header = document.querySelector('.card-header');
-    if (!header) return;
-
-    // Verifica si ya existe el indicador
-    if (header.querySelector('.progress-indicator')) return;
-
-    const progressContainer = document.createElement('div');
-    progressContainer.className = 'progress-indicator';
-    progressContainer.style.cssText = `
-        display: flex;
-        justify-content: center;
-        align-items: center;
-        margin: 20px 0;
-        gap: 12px;
-    `;
-    
-    // Crear pasos
-    for (let i = 1; i <= 2; i++) {
-        const step = document.createElement('div');
-        step.className = `step step-${i}`;
-        step.style.cssText = `
-            width: 40px;
-            height: 40px;
-            border-radius: 50%;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-weight: bold;
-            font-size: 0.875rem;
-            transition: all 0.3s ease;
-            ${i === 1 ? 
-                'background: var(--primary-blue); color: white; transform: scale(1.1);' : 
-                'background: var(--neutral-200); color: var(--neutral-500);'
-            }
-        `;
-        step.textContent = i;
-        progressContainer.appendChild(step);
-        
-        // Línea conectora
-        if (i < 2) {
-            const line = document.createElement('div');
-            line.className = 'step-line';
-            line.style.cssText = `
-                width: 60px;
-                height: 2px;
-                background: var(--neutral-200);
-                transition: all 0.3s ease;
-            `;
-            progressContainer.appendChild(line);
-        }
-    }
-    
-    header.appendChild(progressContainer);
-}
-
-// Actualizar indicador de progreso
-function updateProgressIndicator(step) {
-    const steps = document.querySelectorAll('.step');
-    const lines = document.querySelectorAll('.step-line');
-    
-    steps.forEach((stepEl, index) => {
-        const stepNumber = index + 1;
-        if (stepNumber <= step) {
-            stepEl.style.background = 'var(--primary-blue)';
-            stepEl.style.color = 'white';
-            stepEl.style.transform = 'scale(1.1)';
-            stepEl.style.animation = 'pulse 0.5s ease-out';
-        } else {
-            stepEl.style.background = 'var(--neutral-200)';
-            stepEl.style.color = 'var(--neutral-500)';
-            stepEl.style.transform = 'scale(1)';
-        }
-    });
-    
-    lines.forEach((line, index) => {
-        if (index + 1 < step) {
-            line.style.background = 'var(--primary-blue)';
-            line.style.animation = 'expandWidth 0.5s ease-out';
-        } else {
-            line.style.background = 'var(--neutral-200)';
-        }
-    });
 }
 
 // Configurar validación en tiempo real
@@ -408,28 +319,44 @@ function setupRecoveryForm() {
         // Limpiar mensajes anteriores
         clearMessages();
 
-        // Validar campos vacíos
-        if (!tipoId || !numeroId || !email) {
-            showMessage('error', 'Por favor complete todos los campos.');
+        // Validar campos con el validador existente
+        if (!validateRecoveryFields(tipoId, numeroId, email)) {
             return;
         }
 
-        // Buscar usuario
-        const user = await window.dbManager.getUserByCredentials(tipoId, numeroId);
-
-        if (!user) {
-            showMessage('error', 'No existe un usuario con ese tipo y número de identificación.');
-            return;
+        isProcessing = true;
+        
+        try {
+            // Mostrar estado de carga
+            const submitButton = this.querySelector('button[type="submit"]');
+            setButtonLoading(submitButton, true, 'Verificando datos...');
+            
+            // Simular tiempo de procesamiento
+            await new Promise(resolve => setTimeout(resolve, 2000));
+            
+            // Verificar usuario usando la función existente
+            const user = await verifyUserForRecovery(tipoId, numeroId, email);
+            
+            if (!user) {
+                showVerificationError();
+                return;
+            }
+            
+            // Guardar usuario verificado para el siguiente paso
+            verifiedUser = user;
+            
+            // Mostrar éxito y continuar al siguiente paso
+            await showVerificationSuccess();
+            showPasswordForm();
+            
+        } catch (error) {
+            console.error('Error en verificación:', error);
+            showMessage('error', 'Error al verificar los datos. Por favor intente nuevamente.');
+        } finally {
+            isProcessing = false;
+            const submitButton = form.querySelector('button[type="submit"]');
+            setButtonLoading(submitButton, false);
         }
-
-        // Validar email
-        if (user.email !== email) {
-            showMessage('error', 'El correo electrónico no coincide con el registrado para este usuario.');
-            return;
-        }
-
-        // Si todo está bien, continuar con el flujo de recuperación...
-        // ...
     });
 }
 
@@ -560,9 +487,7 @@ function showPasswordForm() {
     const passwordForm = document.getElementById('passwordForm');
     const subtitle = document.getElementById('subtitle');
     
-    // Actualizar progreso
-    currentStep = 2;
-    updateProgressIndicator(currentStep);
+    // Actualizar progreso (SOLO el indicador de pasos)
     
     // Animación de transición
     recoveryForm.style.animation = 'slideOutLeft 0.5s ease-out';
@@ -658,19 +583,40 @@ async function updateUserPassword(userId, newPassword) {
             throw new Error('Gestor de base de datos no disponible');
         }
         
+        // Hashear la nueva contraseña
+        const hashedPassword = await hashPassword(newPassword);
+        
+        // Buscar y actualizar el usuario en localStorage
+        const db = JSON.parse(localStorage.getItem('db') || '{"users":[]}');
+        const userIndex = db.users.findIndex(u => u.id === userId || u.numeroCuenta === userId);
+        
+        if (userIndex === -1) {
+            throw new Error('Usuario no encontrado');
+        }
+        
         // Actualizar contraseña
-        await dbManager.updateUser(userId, {
-            password: newPassword,
-            ultimoAcceso: new Date().toISOString()
-        });
+        db.users[userIndex].password = hashedPassword;
+        db.users[userIndex].ultimoAcceso = new Date().toISOString();
+        
+        // Guardar en localStorage
+        localStorage.setItem('db', JSON.stringify(db));
         
         console.log('Contraseña actualizada exitosamente para usuario:', userId);
-        showNotification('Contraseña actualizada exitosamente', 'success');
+        return true;
         
     } catch (error) {
         console.error('Error al actualizar contraseña:', error);
         throw error;
     }
+}
+
+// Función para hashear contraseña (agregar si no existe)
+async function hashPassword(password) {
+    const encoder = new TextEncoder();
+    const data = encoder.encode(password);
+    const hashBuffer = await crypto.subtle.digest('SHA-256', data);
+    const hashArray = Array.from(new Uint8Array(hashBuffer));
+    return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
 }
 
 // Mostrar éxito en actualización de contraseña
@@ -682,7 +628,7 @@ async function showPasswordUpdateSuccess() {
     
     await new Promise(resolve => setTimeout(resolve, 500));
     
-    // Mostrar mensaje de éxito
+    // Mostrar mensaje de éxito SIN la barra de carga
     form.innerHTML = `
         <div class="success-container" style="text-align: center; padding: 40px 0;">
             <div class="success-icon" style="
@@ -712,22 +658,6 @@ async function showPasswordUpdateSuccess() {
                 margin-bottom: 24px;
                 animation: slideInUp 0.6s ease-out 0.5s both;
             ">Su contraseña ha sido actualizada exitosamente.<br>Redirigiendo al inicio de sesión...</p>
-            
-            <div class="loading-bar" style="
-                width: 100%;
-                height: 4px;
-                background: rgba(37, 99, 235, 0.1);
-                border-radius: 2px;
-                overflow: hidden;
-                animation: slideInUp 0.6s ease-out 0.7s both;
-            ">
-                <div style="
-                    height: 100%;
-                    background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
-                    width: 0%;
-                    animation: loadingProgress 3s ease-out forwards;
-                "></div>
-            </div>
         </div>
     `;
     
@@ -906,3 +836,19 @@ function goToLogin() {
 
 // Exponer función globalmente
 window.goToLogin = goToLogin;
+
+// Al final del archivo, agrega esto para eliminar cualquier barra residual:
+
+document.addEventListener('DOMContentLoaded', function() {
+    // Eliminar cualquier barra de progreso existente
+    setTimeout(() => {
+        const progressBars = document.querySelectorAll('.progress-bar-container, .progress-indicator, [class*="progress"]');
+        progressBars.forEach(bar => {
+            if (bar && bar.parentNode) {
+                bar.remove();
+            }
+        });
+    }, 100);
+});
+
+// Finalizado

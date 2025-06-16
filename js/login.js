@@ -919,3 +919,5 @@ body {
 }
 `;
 document.head.appendChild(fixBgStyles);
+
+// Finalizado

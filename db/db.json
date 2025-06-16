@@ -1,6 +1,6 @@
 {
   "users": [],
   "settings": {
-    "dailyTransactionLimit": 5000000000
+    "dailyTransactionLimit": 500000000000
   }
 }

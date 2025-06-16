@@ -711,3 +711,5 @@ document.head.appendChild(additionalStyles);
 
 // Exponer función globalmente
 window.cancelRegistration = cancelRegistration;
+
+// Finalizado

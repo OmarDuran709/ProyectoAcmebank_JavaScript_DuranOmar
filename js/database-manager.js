@@ -912,3 +912,5 @@ async function actualizarPasswordUsuario(user, nuevaContraseña) {
     // Actualiza el usuario en localStorage si es necesario
     // ...
 }
+
+// Finalizado
